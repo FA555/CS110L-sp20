@@ -27,6 +27,35 @@ fn pick_a_random_word() -> String {
     String::from(words[rand::thread_rng().gen_range(0, words.len())].trim())
 }
 
+fn read_guess_char() -> char {
+    io::stdout()
+        .flush()
+        .expect("Error flushing stdout.");
+
+    let mut guess = String::new();
+    io::stdin()
+        .read_line(&mut guess)
+        .expect("Error reading line.");
+
+    if guess.len() != 2 {
+        println!("Please enter a single character.");
+        return read_guess_char();
+    }
+
+    guess.chars().next().unwrap()
+}
+
+fn find_in_word(secret_word_chars: &Vec<char>, guessed_word_chars: &Vec<char>, guess_char: char) -> Option<usize> {
+    let mut i = 0;
+    while i < secret_word_chars.len() {
+        if guessed_word_chars[i] == '-' && secret_word_chars[i] == guess_char {
+            return Some(i);
+        }
+        i += 1;
+    }
+    return None;
+}
+
 fn main() {
     let secret_word = pick_a_random_word();
     // Note: given what you know about Rust so far, it's easier to pull characters out of a
@@ -37,4 +66,37 @@ fn main() {
     // println!("random word: {}", secret_word);
 
     // Your code here! :)
+    let mut guessed_word_chars: Vec<char> = vec!['-'; secret_word_chars.len()];
+    let mut guesses_left: u32 = NUM_INCORRECT_GUESSES;
+    let mut guessed_letters: Vec<char> = Vec::new();
+    let mut found: bool = false;
+
+    while guesses_left > 0 {
+        println!("The word so far is: {}", guessed_word_chars.iter().collect::<String>());
+        println!("You have guessed the following letters: {}", guessed_letters.iter().collect::<String>());
+        println!("You have {} guesses left.", guesses_left);
+        print!("Please guess a letter: ");
+
+        let guess_char = read_guess_char();
+        guessed_letters.push(guess_char);
+
+        if let Some(i) = find_in_word(&secret_word_chars, &guessed_word_chars, guess_char) {
+            guessed_word_chars[i] = guess_char;
+        } else {
+            println!("Sorry, that letter is not in the word");
+            guesses_left -= 1;
+        }
+
+        println!();
+        if guessed_word_chars == secret_word_chars {
+            found = true;
+            break;
+        }
+    }
+
+    if found {
+        println!("Congratulations you guessed the secret word: {}!", secret_word);
+    } else {
+        println!("Sorry, you ran out of guesses!");
+    }
 }

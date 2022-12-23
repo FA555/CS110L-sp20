@@ -9,8 +9,8 @@ impl Grid {
     /// Returns a Grid of the specified size, with all elements pre-initialized to zero.
     pub fn new(num_rows: usize, num_cols: usize) -> Grid {
         Grid {
-            num_rows: num_rows,
-            num_cols: num_cols,
+            num_rows,
+            num_cols,
             // This syntax uses the vec! macro to create a vector of zeros, initialized to a
             // specific length
             // https://stackoverflow.com/a/29530932
@@ -30,18 +30,22 @@ impl Grid {
     /// but others argue that makes code needlessly complex. Here, we decided to return Option to
     /// give you more practice with Option :) and because this similar library returns Option:
     /// https://docs.rs/array2d/0.2.1/array2d/struct.Array2D.html
-    #[allow(unused)] // TODO: delete this line when you implement this function
     pub fn get(&self, row: usize, col: usize) -> Option<usize> {
-        unimplemented!();
-        // Be sure to delete the #[allow(unused)] line above
+        if row > self.num_rows || col > self.num_cols {
+            return None;
+        }
+        Some(self.elems[self.num_cols * row + col])
     }
 
     /// Sets the element at the specified location to the specified value. If the location is out
     /// of bounds, returns Err with an error message.
     #[allow(unused)] // TODO: delete this line when you implement this function
     pub fn set(&mut self, row: usize, col: usize, val: usize) -> Result<(), &'static str> {
-        unimplemented!();
-        // Be sure to delete the #[allow(unused)] line above
+        if row > self.num_rows || col > self.num_cols {
+            return Err("Grid location out of bounds");
+        }
+        self.elems[self.num_cols * row + col] = val;
+        Ok(())
     }
 
     /// Prints a visual representation of the grid. You can use this for debugging.

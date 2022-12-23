@@ -1,5 +1,9 @@
 /* The following exercises were borrowed from Will Crichton's CS 242 Rust lab. */
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use std::collections::HashSet;
 
 fn main() {
@@ -7,15 +11,30 @@ fn main() {
 }
 
 fn add_n(v: Vec<i32>, n: i32) -> Vec<i32> {
-    unimplemented!()
+    let mut v = v;
+    for x in &mut v {
+        *x += n;
+    }
+    v
 }
 
 fn add_n_inplace(v: &mut Vec<i32>, n: i32) {
-    unimplemented!()
+    for x in v {
+        *x += n;
+    }
 }
 
 fn dedup(v: &mut Vec<i32>) {
-    unimplemented!()
+    let mut seen = HashSet::new();
+    let mut v_ret = Vec::new();
+    
+    for x in &mut *v {
+        if !seen.contains(x) {
+            seen.insert(*x);
+            v_ret.push(*x);
+        }
+    }
+    *v = v_ret;
 }
 
 #[cfg(test)]
@@ -24,7 +43,8 @@ mod test {
 
     #[test]
     fn test_add_n() {
-        assert_eq!(add_n(vec![1], 2), vec![3]);
+        let v = vec![1, 2, 3];
+        assert_eq!(add_n(v, 2), vec![3, 4, 5]);
     }
 
     #[test]
