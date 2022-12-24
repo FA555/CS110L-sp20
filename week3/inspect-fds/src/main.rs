@@ -1,5 +1,7 @@
 use std::env;
 
+// use crate::open_file::OpenFile;
+
 mod open_file;
 mod process;
 mod ps_utils;
@@ -10,11 +12,23 @@ fn main() {
         println!("Usage: {} <name or pid of target>", args[0]);
         std::process::exit(1);
     }
-    #[allow(unused)] // TODO: delete this line for Milestone 1
     let target = &args[1];
 
     // TODO: Milestone 1: Get the target Process using psutils::get_target()
-    unimplemented!();
+    let process = ps_utils::get_target(target)
+        .expect("Error calling ps or pgrep");
+
+    if let Some(process) = process {
+        process.print();
+    } else {
+        println!("Target \"{}\" did not match any running PIDs or executables", target);
+        std::process::exit(1);
+    }
+
+    // if process.is_none() {
+    // }
+    // let process = process.unwrap();
+    // process.print();
 }
 
 #[cfg(test)]
