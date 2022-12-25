@@ -158,7 +158,9 @@ impl<T: Clone> IntoIterator for LinkedList<T> {
     type IntoIter = LinkedListIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        LinkedListIter { cur: self.head.clone() }
+        LinkedListIter {
+            cur: self.head.clone(),
+        }
     }
 }
 
