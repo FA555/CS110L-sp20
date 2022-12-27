@@ -1,8 +1,8 @@
 use crate::debugger_command::DebuggerCommand;
 use crate::dwarf_data::{DwarfData, Error as DwarfError};
 use crate::inferior::{Inferior, Status};
-use rustyline::Editor;
 use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 fn parse_address(addr: &str) -> Option<usize> {
     if !addr.starts_with('*') {
@@ -35,9 +35,12 @@ impl Debugger {
             Err(DwarfError::ErrorOpeningFile) => {
                 println!("Could not open file {}", target);
                 std::process::exit(1);
-            },
+            }
             Err(DwarfError::DwarfFormatError(err)) => {
-                println!("Could not load debugging symbols from {}: {:?}", target, err);
+                println!(
+                    "Could not load debugging symbols from {}: {:?}",
+                    target, err
+                );
                 std::process::exit(1);
             }
         };
@@ -68,14 +71,16 @@ impl Debugger {
                     } else {
                         println!("There is no inferior running.");
                     }
-                },
+                }
                 DebuggerCommand::Breakpoint(arg) => {
                     let mut addr = parse_address(&arg);
                     if addr.is_none() {
                         addr = self.debug_data.get_addr_for_function(None, &arg);
                     }
                     if addr.is_none() {
-                        addr = self.debug_data.get_addr_for_line(None, arg.parse().unwrap_or(0));
+                        addr = self
+                            .debug_data
+                            .get_addr_for_line(None, arg.parse().unwrap_or(0));
                     }
                     if let Some(addr) = addr {
                         println!("Set breakpoint {} at {}", self.breakpoints.len(), addr);
@@ -86,22 +91,26 @@ impl Debugger {
                     } else {
                         println!("Invalid argument.");
                     }
-                },
+                }
                 DebuggerCommand::Continue => {
                     if self.inferior.is_none() {
                         println!("There is no inferior running.");
                     } else {
                         self.inferior_continue_exec();
                     }
-                },
+                }
                 DebuggerCommand::Run(args) => {
                     if let Some(inferior) = &mut self.inferior {
-                        inferior.kill().expect("Failed to kill the former inferior.");
+                        inferior
+                            .kill()
+                            .expect("Failed to kill the former inferior.");
                     }
 
                     if let Some(mut inferior) = Inferior::new(&self.target, &args) {
                         for breakpoint in &self.breakpoints {
-                            inferior.set_breakpoint(*breakpoint).expect("Failed to set breakpoint");
+                            inferior
+                                .set_breakpoint(*breakpoint)
+                                .expect("Failed to set breakpoint");
                         }
                         self.inferior = Some(inferior);
                         self.inferior_continue_exec();
@@ -163,25 +172,23 @@ impl Debugger {
     fn inferior_continue_exec(&mut self) {
         if let Some(inferior) = &mut self.inferior {
             match inferior.continue_exec() {
-                Ok(status) => {
-                    match status {
-                        Status::Stopped(signal, rip) => {
-                            let line = self.debug_data.get_line_from_addr(rip).unwrap();
-                            let function = self.debug_data.get_function_from_addr(rip).unwrap();
-                            println!("Child stopped (signal {})", signal);
-                            println!("Stopped at {}:{}", line.file, line.number);
-                            println!("In function `{}'", function);
-                        },
-                        Status::Exited(status) => {
-                            self.inferior = None;
-                            println!("Child exited (signal {})", status);
-                        },
-                        Status::Signaled(signal) => {
-                            self.inferior = None;
-                            println!("Child signaled (signal {})", signal);
-                        },
+                Ok(status) => match status {
+                    Status::Stopped(signal, rip) => {
+                        let line = self.debug_data.get_line_from_addr(rip).unwrap();
+                        let function = self.debug_data.get_function_from_addr(rip).unwrap();
+                        println!("Child stopped (signal {})", signal);
+                        println!("Stopped at {}:{}", line.file, line.number);
+                        println!("In function `{}'", function);
                     }
-                }
+                    Status::Exited(status) => {
+                        self.inferior = None;
+                        println!("Child exited (signal {})", status);
+                    }
+                    Status::Signaled(signal) => {
+                        self.inferior = None;
+                        println!("Child signaled (signal {})", signal);
+                    }
+                },
                 Err(err) => {
                     println!("Inferior cannot be executed: {}", err);
                 }

@@ -85,7 +85,7 @@ impl Inferior {
         let regs = ptrace::getregs(self.pid())?;
         let mut rip = regs.rip as usize;
         let mut rbp = regs.rbp as usize;
-        
+
         loop {
             let line = debug_data.get_line_from_addr(rip).unwrap();
             let function = debug_data.get_function_from_addr(rip).unwrap();
@@ -117,7 +117,7 @@ impl Inferior {
             match self.wait(None).unwrap() {
                 Status::Stopped(_, _) => {
                     self.write_byte(rip - 1, 0xcc)?;
-                },
+                }
                 Status::Signaled(signal) => return Ok(Status::Signaled(signal)),
                 Status::Exited(status) => return Ok(Status::Exited(status)),
             }

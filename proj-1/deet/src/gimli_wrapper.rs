@@ -31,7 +31,9 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
     let dwarf_cow = gimli::Dwarf::load(&load_section, &load_section_sup)?;
 
     // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
-    let borrow_section: &dyn for<'a> Fn(&'a borrow::Cow<[u8]>,) -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
+    let borrow_section: &dyn for<'a> Fn(
+        &'a borrow::Cow<[u8]>,
+    ) -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
         &|section| gimli::EndianSlice::new(section, endian);
 
     // Create `EndianSlice`s for all of the sections.
@@ -183,16 +185,16 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
                                     .push(var);
                             }
                             Ordering::Greater => {
-                            compilation_units
-                                .last_mut()
-                                .unwrap()
-                                .functions
-                                .last_mut()
-                                .unwrap()
-                                .variables
-                                .push(var);
-                            },
-                            _ => {},
+                                compilation_units
+                                    .last_mut()
+                                    .unwrap()
+                                    .functions
+                                    .last_mut()
+                                    .unwrap()
+                                    .variables
+                                    .push(var);
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -329,16 +331,10 @@ fn get_attr_value<R: Reader>(
             dump_exprloc(w, unit.encoding(), data)?;
             Ok(DebugValue::Str(w.to_string()))
         }
-        gimli::AttributeValue::UnitRef(offset) => {
-            match offset.to_unit_section_offset(unit) {
-                UnitSectionOffset::DebugInfoOffset(goff) => {
-                    Ok(DebugValue::Size(goff.0))
-                }
-                UnitSectionOffset::DebugTypesOffset(goff) => {
-                    Ok(DebugValue::Size(goff.0))
-                }
-            }
-        }
+        gimli::AttributeValue::UnitRef(offset) => match offset.to_unit_section_offset(unit) {
+            UnitSectionOffset::DebugInfoOffset(goff) => Ok(DebugValue::Size(goff.0)),
+            UnitSectionOffset::DebugTypesOffset(goff) => Ok(DebugValue::Size(goff.0)),
+        },
         gimli::AttributeValue::DebugStrRef(offset) => {
             if let Ok(s) = dwarf.debug_str.get_str(offset) {
                 Ok(DebugValue::Str(format!("{}", s.to_string_lossy()?)))
@@ -358,9 +354,7 @@ fn get_attr_value<R: Reader>(
             dump_file_index(w, value, unit, dwarf)?;
             Ok(DebugValue::Str(w.to_string()))
         }
-        _ => {
-            Ok(DebugValue::NoVal)
-        }
+        _ => Ok(DebugValue::NoVal),
     }
 }
 

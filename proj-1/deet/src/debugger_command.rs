@@ -17,7 +17,7 @@ impl DebuggerCommand {
                 } else {
                     Some(DebuggerCommand::Breakpoint(tokens[1].to_string()))
                 }
-            },
+            }
             "c" | "cont" | "continue" => Some(DebuggerCommand::Continue),
             "q" | "quit" => Some(DebuggerCommand::Quit),
             "r" | "run" => {
