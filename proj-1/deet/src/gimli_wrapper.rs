@@ -5,12 +5,12 @@
 //!
 //! This code is a huge mess. Please don't read it unless you're trying to do an extension :)
 
-use gimli;
 use gimli::{UnitOffset, UnitSectionOffset};
 use object::Object;
 use std::borrow;
 //use std::io::{BufWriter, Write};
 use crate::dwarf_data::{File, Function, Line, Location, Type, Variable};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt::Write;
@@ -31,10 +31,8 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
     let dwarf_cow = gimli::Dwarf::load(&load_section, &load_section_sup)?;
 
     // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
-    let borrow_section: &dyn for<'a> Fn(
-        &'a borrow::Cow<[u8]>,
-    ) -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
-        &|section| gimli::EndianSlice::new(&*section, endian);
+    let borrow_section: &dyn for<'a> Fn(&'a borrow::Cow<[u8]>,) -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
+        &|section| gimli::EndianSlice::new(section, endian);
 
     // Create `EndianSlice`s for all of the sections.
     let dwarf = dwarf_cow.borrow(&borrow_section);
@@ -151,7 +149,7 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
                             }
                             gimli::DW_AT_type => {
                                 if let Ok(DebugValue::Size(offset)) = val {
-                                    if let Some(dtype) = offset_to_type.get(&offset).clone() {
+                                    if let Some(dtype) = offset_to_type.get(&offset) {
                                         entity_type = Some(dtype.clone());
                                     }
                                 }
@@ -169,20 +167,22 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
                             _ => {}
                         }
                     }
-                    if entity_type.is_some() && location.is_some() {
+                    if let (Some(entity_type), Some(location)) = (entity_type, location) {
                         let var = Variable {
                             name,
-                            entity_type: entity_type.unwrap(),
-                            location: location.unwrap(),
+                            entity_type,
+                            location,
                             line_number: line_number.try_into().unwrap(),
                         };
-                        if depth == 1 {
-                            compilation_units
-                                .last_mut()
-                                .unwrap()
-                                .global_variables
-                                .push(var);
-                        } else if depth > 1 {
+                        match depth.cmp(&1) {
+                            Ordering::Equal => {
+                                compilation_units
+                                    .last_mut()
+                                    .unwrap()
+                                    .global_variables
+                                    .push(var);
+                            }
+                            Ordering::Greater => {
                             compilation_units
                                 .last_mut()
                                 .unwrap()
@@ -191,6 +191,8 @@ pub fn load_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<
                                 .unwrap()
                                 .variables
                                 .push(var);
+                            },
+                            _ => {},
                         }
                     }
                 }
@@ -254,33 +256,33 @@ pub enum DebugValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    GimliError(gimli::Error),
-    Addr2lineError(addr2line::gimli::Error),
-    ObjectError(String),
-    IoError,
+    Gimli(gimli::Error),
+    Addr2line(addr2line::gimli::Error),
+    Object(String),
+    Io,
 }
 
 impl From<gimli::Error> for Error {
     fn from(err: gimli::Error) -> Self {
-        Error::GimliError(err)
+        Error::Gimli(err)
     }
 }
 
 impl From<addr2line::gimli::Error> for Error {
     fn from(err: addr2line::gimli::Error) -> Self {
-        Error::Addr2lineError(err)
+        Error::Addr2line(err)
     }
 }
 
 impl From<io::Error> for Error {
     fn from(_: io::Error) -> Self {
-        Error::IoError
+        Error::Io
     }
 }
 
 impl From<std::fmt::Error> for Error {
     fn from(_: std::fmt::Error) -> Self {
-        Error::IoError
+        Error::Io
     }
 }
 

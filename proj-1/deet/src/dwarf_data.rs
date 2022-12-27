@@ -31,8 +31,8 @@ impl DwarfData {
     pub fn from_file(path: &str) -> Result<DwarfData, Error> {
         let file = fs::File::open(path).or(Err(Error::ErrorOpeningFile))?;
         let mmap = unsafe { memmap::Mmap::map(&file).or(Err(Error::ErrorOpeningFile))? };
-        let object = object::File::parse(&*mmap)
-            .or_else(|e| Err(gimli_wrapper::Error::ObjectError(e.to_string())))?;
+        let object = object::File::parse(&mmap)
+            .map_err(|e| gimli_wrapper::Error::Object(e.to_string()))?;
         let endian = if object.is_little_endian() {
             gimli::RunTimeEndian::Little
         } else {
@@ -40,18 +40,16 @@ impl DwarfData {
         };
         Ok(DwarfData {
             files: gimli_wrapper::load_file(&object, endian)?,
-            addr2line: Context::new(&object).or_else(|e| Err(gimli_wrapper::Error::from(e)))?,
+            addr2line: Context::new(&object).map_err(gimli_wrapper::Error::from)?,
         })
     }
 
-    #[allow(dead_code)]
     fn get_target_file(&self, file: &str) -> Option<&File> {
         self.files.iter().find(|f| {
-            f.name == file || (!file.contains("/") && f.name.ends_with(&format!("/{}", file)))
+            f.name == file || (!file.contains('/') && f.name.ends_with(&format!("/{}", file)))
         })
     }
 
-    #[allow(dead_code)]
     pub fn get_addr_for_line(&self, file: Option<&str>, line_number: usize) -> Option<usize> {
         let target_file = match file {
             Some(filename) => self.get_target_file(filename)?,
@@ -66,7 +64,6 @@ impl DwarfData {
         )
     }
 
-    #[allow(dead_code)]
     pub fn get_addr_for_function(&self, file: Option<&str>, func_name: &str) -> Option<usize> {
         match file {
             Some(filename) => Some(
@@ -87,7 +84,6 @@ impl DwarfData {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_line_from_addr(&self, curr_addr: usize) -> Option<Line> {
         let location = self
             .addr2line
@@ -100,7 +96,6 @@ impl DwarfData {
         })
     }
 
-    #[allow(dead_code)]
     pub fn get_function_from_addr(&self, curr_addr: usize) -> Option<String> {
         let frame = self
             .addr2line
@@ -111,7 +106,6 @@ impl DwarfData {
         Some(frame.function?.raw_name().ok()?.to_string())
     }
 
-    #[allow(dead_code)]
     pub fn print(&self) {
         for file in &self.files {
             println!("------");
@@ -156,10 +150,7 @@ pub struct Type {
 
 impl Type {
     pub fn new(name: String, size: usize) -> Self {
-        Type {
-            name: name,
-            size: size,
-        }
+        Type { name, size }
     }
 }
 
