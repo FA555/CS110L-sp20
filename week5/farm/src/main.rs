@@ -63,8 +63,8 @@ fn get_input_numbers() -> VecDeque<u32> {
 
 fn factor(numbers: Arc<Mutex<VecDeque<u32>>>) {
     loop {
-        let num = numbers.lock().unwrap().pop_front();
-        if let Some(num) = num {
+        let mut vec_deque = numbers.lock().unwrap();
+        if let Some(num) = vec_deque.pop_front() {
             factor_number(num);
         } else {
             break;
