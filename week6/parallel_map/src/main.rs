@@ -1,4 +1,3 @@
-use crossbeam_channel;
 use std::{thread, time};
 
 fn parallel_map<T, U, F>(input_vec: Vec<T>, num_threads: usize, f: F) -> Vec<U>
