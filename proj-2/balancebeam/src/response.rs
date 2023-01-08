@@ -55,9 +55,7 @@ fn get_content_length(response: &http::Response<Vec<u8>>) -> Result<Option<usize
 fn parse_response(buffer: &[u8]) -> Result<Option<(http::Response<Vec<u8>>, usize)>, Error> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_NUM_HEADERS];
     let mut resp = httparse::Response::new(&mut headers);
-    let res = resp
-        .parse(buffer)
-        .map_err(Error::MalformedResponse)?;
+    let res = resp.parse(buffer).map_err(Error::MalformedResponse)?;
 
     if let httparse::Status::Complete(len) = res {
         let mut response = http::Response::builder()
@@ -115,7 +113,10 @@ async fn read_headers(stream: &mut TcpStream) -> Result<http::Response<Vec<u8>>,
 /// present, it reads that many bytes; otherwise, it reads bytes until the connection is closed.
 ///
 /// You will need to modify this function in Milestone 2.
-async fn read_body(stream: &mut TcpStream, response: &mut http::Response<Vec<u8>>) -> Result<(), Error> {
+async fn read_body(
+    stream: &mut TcpStream,
+    response: &mut http::Response<Vec<u8>>,
+) -> Result<(), Error> {
     // The response may or may not supply a Content-Length header. If it provides the header, then
     // we want to read that number of bytes; if it does not, we want to keep reading bytes until
     // the connection is closed.
@@ -184,10 +185,14 @@ pub async fn write_to_stream(
     response: &http::Response<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
-    stream.write_all(&format_response_line(response).into_bytes()).await?;
+    stream
+        .write_all(&format_response_line(response).into_bytes())
+        .await?;
     stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     for (header_name, header_value) in response.headers() {
-        stream.write_all(format!("{}: ", header_name).as_bytes()).await?;
+        stream
+            .write_all(format!("{}: ", header_name).as_bytes())
+            .await?;
         stream.write_all(header_value.as_bytes()).await?;
         stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     }

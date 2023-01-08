@@ -1,12 +1,16 @@
 mod request;
 mod response;
 
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
 use rand::{Rng, SeedableRng};
 // use std::net::{TcpListener, TcpStream};
-use tokio::{net::{TcpListener, TcpStream}, sync::RwLock, time::sleep};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::RwLock,
+    time::sleep,
+};
 
 /// Contains information parsed from the command-line invocation of balancebeam. The Clap macros
 /// provide a fancy way to automatically construct a command-line argument parser.
@@ -29,7 +33,6 @@ struct CmdOptions {
     #[arg(long, default_value = "0")]
     max_requests_per_minute: u64,
 }
-
 
 /// Contains information about the state of balancebeam (e.g. what servers we are currently proxying
 /// to, what servers have failed, rate limiting counts, etc.)
@@ -108,7 +111,10 @@ async fn main() {
 
 async fn active_health_check(state: &ProxyState) {
     loop {
-        sleep(std::time::Duration::from_secs(state.active_health_check_interval)).await;
+        sleep(std::time::Duration::from_secs(
+            state.active_health_check_interval,
+        ))
+        .await;
 
         let mut live_upstream_addresses = state.live_upstream_addresses.write().await;
         live_upstream_addresses.clear();
@@ -122,16 +128,25 @@ async fn active_health_check(state: &ProxyState) {
             match TcpStream::connect(upstream_ip).await {
                 Ok(mut conn) => {
                     if let Err(err) = request::write_to_stream(&request, &mut conn).await {
-                        log::error!("Failed to send request to upstream {}: {}", upstream_ip, err);
+                        log::error!(
+                            "Failed to send request to upstream {}: {}",
+                            upstream_ip,
+                            err
+                        );
                         return;
                     }
-                    let response = match response::read_from_stream(&mut conn, request.method()).await {
-                        Ok(response) => response,
-                        Err(err) => {
-                            log::error!("Failed to read response from upstream {}: {:?}", upstream_ip, err);
-                            return;
-                        }
-                    };
+                    let response =
+                        match response::read_from_stream(&mut conn, request.method()).await {
+                            Ok(response) => response,
+                            Err(err) => {
+                                log::error!(
+                                    "Failed to read response from upstream {}: {:?}",
+                                    upstream_ip,
+                                    err
+                                );
+                                return;
+                            }
+                        };
                     match response.status().as_u16() {
                         200 => live_upstream_addresses.push(upstream_ip.clone()),
                         status => {
@@ -139,7 +154,7 @@ async fn active_health_check(state: &ProxyState) {
                             return;
                         }
                     }
-                },
+                }
                 Err(err) => {
                     log::error!("Failed to connect to upstream {}: {}", upstream_ip, err);
                     return;
@@ -176,7 +191,11 @@ async fn connect_to_upstream(state: &ProxyState) -> Result<TcpStream, std::io::E
 
 async fn send_response(client_conn: &mut TcpStream, response: &http::Response<Vec<u8>>) {
     let client_ip = client_conn.peer_addr().unwrap().ip().to_string();
-    log::info!("{} <- {}", client_ip, response::format_response_line(response));
+    log::info!(
+        "{} <- {}",
+        client_ip,
+        response::format_response_line(response)
+    );
     if let Err(error) = response::write_to_stream(response, client_conn).await {
         log::warn!("Failed to send response to client: {}", error);
     }
@@ -201,7 +220,10 @@ async fn check_rate(state: &ProxyState, client_conn: &mut TcpStream) -> Result<(
         if let Err(err) = response::write_to_stream(&response, client_conn).await {
             log::warn!("Failed to send response to client: {}", err);
         }
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Rate limiting"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Rate limiting",
+        ));
     }
 
     Ok(())
@@ -259,7 +281,8 @@ async fn handle_connection(mut client_conn: TcpStream, state: &ProxyState) {
             request::format_request_line(&request)
         );
 
-        if state.max_requests_per_minute != 0 && check_rate(state, &mut client_conn).await.is_err() {
+        if state.max_requests_per_minute != 0 && check_rate(state, &mut client_conn).await.is_err()
+        {
             log::error!("{} rate limiting", client_ip);
             continue;
         }
@@ -271,7 +294,11 @@ async fn handle_connection(mut client_conn: TcpStream, state: &ProxyState) {
 
         // Forward the request to the server
         if let Err(error) = request::write_to_stream(&request, &mut upstream_conn).await {
-            log::error!("Failed to send request to upstream {}: {}", upstream_ip, error);
+            log::error!(
+                "Failed to send request to upstream {}: {}",
+                upstream_ip,
+                error
+            );
             let response = response::make_http_error(http::StatusCode::BAD_GATEWAY);
             send_response(&mut client_conn, &response).await;
             return;
@@ -279,7 +306,8 @@ async fn handle_connection(mut client_conn: TcpStream, state: &ProxyState) {
         log::debug!("Forwarded request to server");
 
         // Read the server's response
-        let response = match response::read_from_stream(&mut upstream_conn, request.method()).await {
+        let response = match response::read_from_stream(&mut upstream_conn, request.method()).await
+        {
             Ok(response) => response,
             Err(error) => {
                 log::error!("Error reading response from server: {:?}", error);

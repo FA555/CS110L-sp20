@@ -148,7 +148,10 @@ async fn read_body(
         // Read up to 512 bytes at a time. (If the client only sent a small body, then only allocate
         // space to read that body.)
         let mut buffer = vec![0_u8; min(512, content_length)];
-        let bytes_read = stream.read(&mut buffer).await.map_err(Error::ConnectionFail)?;
+        let bytes_read = stream
+            .read(&mut buffer)
+            .await
+            .map_err(Error::ConnectionFail)?;
 
         // Make sure the client is still sending us bytes
         if bytes_read == 0 {
@@ -200,10 +203,14 @@ pub async fn write_to_stream(
     request: &http::Request<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
-    stream.write_all(&format_request_line(request).into_bytes()).await?;
+    stream
+        .write_all(&format_request_line(request).into_bytes())
+        .await?;
     stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     for (header_name, header_value) in request.headers() {
-        stream.write_all(format!("{}: ", header_name).as_bytes()).await?;
+        stream
+            .write_all(format!("{}: ", header_name).as_bytes())
+            .await?;
         stream.write_all(header_value.as_bytes()).await?;
         stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     }
@@ -215,5 +222,10 @@ pub async fn write_to_stream(
 }
 
 pub fn format_request_line(request: &http::Request<Vec<u8>>) -> String {
-    format!("{} {} {:?}", request.method(), request.uri(), request.version())
+    format!(
+        "{} {} {:?}",
+        request.method(),
+        request.uri(),
+        request.version()
+    )
 }
