@@ -184,16 +184,16 @@ pub async fn write_to_stream(
     response: &http::Response<Vec<u8>>,
     stream: &mut TcpStream,
 ) -> Result<(), std::io::Error> {
-    stream.write(&format_response_line(response).into_bytes()).await?;
-    stream.write(&[b'\r', b'\n']).await?; // \r\n
+    stream.write_all(&format_response_line(response).into_bytes()).await?;
+    stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     for (header_name, header_value) in response.headers() {
-        stream.write(format!("{}: ", header_name).as_bytes()).await?;
-        stream.write(header_value.as_bytes()).await?;
-        stream.write(&[b'\r', b'\n']).await?; // \r\n
+        stream.write_all(format!("{}: ", header_name).as_bytes()).await?;
+        stream.write_all(header_value.as_bytes()).await?;
+        stream.write_all(&[b'\r', b'\n']).await?; // \r\n
     }
-    stream.write(&[b'\r', b'\n']).await?;
+    stream.write_all(&[b'\r', b'\n']).await?;
     if !response.body().is_empty() {
-        stream.write(response.body()).await?;
+        stream.write_all(response.body()).await?;
     }
     Ok(())
 }

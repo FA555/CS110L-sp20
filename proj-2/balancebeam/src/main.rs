@@ -1,7 +1,7 @@
 mod request;
 mod response;
 
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use clap::Parser;
 use rand::{Rng, SeedableRng};
@@ -27,7 +27,7 @@ struct CmdOptions {
     active_health_check_path: String,
     /// "Maximum number of requests to accept per IP per minute (0 = unlimited)"
     #[arg(long, default_value = "0")]
-    max_requests_per_minute: usize,
+    max_requests_per_minute: u64,
 }
 
 
@@ -38,14 +38,12 @@ struct CmdOptions {
 #[derive(Clone)]
 struct ProxyState {
     /// How frequently we check whether upstream servers are alive (Milestone 4)
-    #[allow(dead_code)]
     active_health_check_interval: u64,
     /// Where we should send requests when doing active health checks (Milestone 4)
-    #[allow(dead_code)]
     active_health_check_path: String,
     /// Maximum number of requests an individual IP can make in a minute (Milestone 5)
-    #[allow(dead_code)]
-    max_requests_per_minute: usize,
+    max_requests_per_minute: u64,
+    rate_limiting_counter: Arc<RwLock<HashMap<String, u64>>>,
     /// Addresses of servers that we are proxying to
     upstream_addresses: Vec<String>,
     live_upstream_addresses: Arc<RwLock<Vec<String>>>,
@@ -85,11 +83,17 @@ async fn main() {
         active_health_check_interval: options.active_health_check_interval,
         active_health_check_path: options.active_health_check_path,
         max_requests_per_minute: options.max_requests_per_minute,
+        rate_limiting_counter: Arc::new(RwLock::new(HashMap::new())),
     };
 
     let state_temp = state.clone();
     tokio::spawn(async move {
         active_health_check(&state_temp).await;
+    });
+
+    let state_temp = state.clone();
+    tokio::spawn(async move {
+        rate_limiting_counter_clearer(&state_temp, 60).await;
     });
 
     loop {
@@ -121,7 +125,7 @@ async fn active_health_check(state: &ProxyState) {
                         log::error!("Failed to send request to upstream {}: {}", upstream_ip, err);
                         return;
                     }
-                    let response = match response::read_from_stream(&mut conn, &request.method()).await {
+                    let response = match response::read_from_stream(&mut conn, request.method()).await {
                         Ok(response) => response,
                         Err(err) => {
                             log::error!("Failed to read response from upstream {}: {:?}", upstream_ip, err);
@@ -130,7 +134,7 @@ async fn active_health_check(state: &ProxyState) {
                     };
                     match response.status().as_u16() {
                         200 => live_upstream_addresses.push(upstream_ip.clone()),
-                        status @ _ => {
+                        status => {
                             log::error!("Upstream {} returned status {}", upstream_ip, status);
                             return;
                         }
@@ -176,6 +180,31 @@ async fn send_response(client_conn: &mut TcpStream, response: &http::Response<Ve
     if let Err(error) = response::write_to_stream(response, client_conn).await {
         log::warn!("Failed to send response to client: {}", error);
     }
+}
+
+async fn rate_limiting_counter_clearer(state: &ProxyState, clear_interval: u64) {
+    loop {
+        sleep(std::time::Duration::from_secs(clear_interval)).await;
+        let mut rate_limiting_counter = state.rate_limiting_counter.write().await;
+        rate_limiting_counter.clear();
+    }
+}
+
+async fn check_rate(state: &ProxyState, client_conn: &mut TcpStream) -> Result<(), std::io::Error> {
+    let client_ip = client_conn.peer_addr().unwrap().ip().to_string();
+    let mut rate_limiting_counter = state.rate_limiting_counter.write().await;
+    let counter = rate_limiting_counter.entry(client_ip).or_insert(0);
+    *counter += 1;
+
+    if *counter > state.max_requests_per_minute {
+        let response = response::make_http_error(http::StatusCode::TOO_MANY_REQUESTS);
+        if let Err(err) = response::write_to_stream(&response, client_conn).await {
+            log::warn!("Failed to send response to client: {}", err);
+        }
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Rate limiting"));
+    }
+
+    Ok(())
 }
 
 async fn handle_connection(mut client_conn: TcpStream, state: &ProxyState) {
@@ -229,6 +258,11 @@ async fn handle_connection(mut client_conn: TcpStream, state: &ProxyState) {
             upstream_ip,
             request::format_request_line(&request)
         );
+
+        if state.max_requests_per_minute != 0 && check_rate(state, &mut client_conn).await.is_err() {
+            log::error!("{} rate limiting", client_ip);
+            continue;
+        }
 
         // Add X-Forwarded-For header so that the upstream server knows the client's IP address.
         // (We're the ones connecting directly to the upstream server, so without this header, the
